@@ -152,7 +152,11 @@ elif menu == "학생 관리":
     class_dict = {label: id_ for id_, label in class_options}
 
     selected_class = st.selectbox("수업반 선택", list(class_dict.keys()))
-    class_id = class_dict[selected_class]
+    if selected_class is not None:
+        class_id = class_dict[selected_class]
+        class_id = class_dict[selected_class]
+    else:
+        st.warning("수업을 선택해주세요.")
 
     subtab1, subtab2 = st.tabs(["➕ 학생 추가", "📑 학생 목록"])
 

@@ -1,3 +1,5 @@
+import os
+
 import streamlit as st
 
 st.title("앱개발 연수 중")
@@ -9,12 +11,14 @@ from firebase_admin import credentials, initialize_app
 from firebase_admin import firestore, storage
 import pandas as pd
 import datetime
+import os, json
 
 
 # Firebase 초기화
 @st.cache_resource
 def init_firebase():
-    cred = credentials.Certificate("firebase_service_account.json")  # Firebase 서비스 계정 키
+    firebase_service_account = json.loads(os.environ["firebase_service_account"])
+    cred = credentials.Certificate(firebase_service_account)  # Firebase 서비스 계정 키
     initialize_app(cred, {'storageBucket': 'YOUR_FIREBASE_PROJECT.appspot.com'})
     return firestore.client(), storage.bucket()
 

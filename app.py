@@ -85,6 +85,108 @@ elif menu == "교과 관리":
                     })
                     st.success("교과가 성공적으로 등록되었습니다.")
 
-# 3~6번 메뉴는 이후 구현 예정
-else:
-    st.warning(f"'{menu}' 기능은 아직 구현되지 않았습니다. 다음 단계에서 개발을 계속하세요.")
+# class_student_management.py (app.py의 일부로 사용 가능)
+import streamlit as st
+import pandas as pd
+
+# Firestore와 Storage는 app.py에서 초기화된 db, bucket 사용
+
+# 수업 관리
+if menu == "수업 관리":
+    st.header("🗂️ 수업 관리")
+    tab1, tab2 = st.tabs(["📋 수업 목록 조회", "➕ 수업 등록"])
+
+    with tab1:
+        classes = db.collection("classes").stream()
+        rows = []
+        for c in classes:
+            d = c.to_dict()
+            rows.append({
+                "학년도": d.get("year"),
+                "학기": d.get("semester"),
+                "교과": d.get("subject_name"),
+                "반": d.get("classroom"),
+                "요일": ", ".join(d.get("days", [])),
+                "교시": ", ".join(map(str, d.get("periods", [])))
+            })
+        if rows:
+            st.dataframe(pd.DataFrame(rows))
+        else:
+            st.info("등록된 수업이 없습니다.")
+
+    with tab2:
+        with st.form("class_form"):
+            year = st.selectbox("학년도", list(range(2020, 2031)), index=5)
+            semester = st.selectbox("학기", [1, 2])
+
+            subjects = db.collection("subjects").stream()
+            subject_list = [(s.id, s.to_dict().get("name")) for s in subjects]
+            subject_dict = {name: id_ for id_, name in subject_list}
+            subject_name = st.selectbox("교과 선택", list(subject_dict.keys()))
+
+            classroom = st.text_input("수업 학반")
+            days = st.multiselect("수업 요일", ["월", "화", "수", "목", "금"])
+            periods = st.multiselect("수업 교시", list(range(1, 11)))
+
+            submitted = st.form_submit_button("수업 등록")
+
+            if submitted and classroom and days and periods:
+                db.collection("classes").add({
+                    "year": year,
+                    "semester": semester,
+                    "subject_id": subject_dict[subject_name],
+                    "subject_name": subject_name,
+                    "classroom": classroom,
+                    "days": days,
+                    "periods": periods
+                })
+                st.success("수업이 등록되었습니다.")
+            elif submitted:
+                st.warning("모든 필드를 입력해주세요.")
+
+# 학생 관리
+elif menu == "학생 관리":
+    st.header("👨‍🎓 학생 관리")
+    class_docs = db.collection("classes").stream()
+    class_options = [(doc.id, f"{doc.to_dict()['year']}학년도 {doc.to_dict()['semester']}학기 {doc.to_dict()['classroom']}") for doc in class_docs]
+    class_dict = {label: id_ for id_, label in class_options}
+
+    selected_class = st.selectbox("수업반 선택", list(class_dict.keys()))
+    class_id = class_dict[selected_class]
+
+    subtab1, subtab2 = st.tabs(["➕ 학생 추가", "📑 학생 목록"])
+
+    with subtab1:
+        method = st.radio("등록 방식", ["직접 입력", "CSV 업로드"])
+
+        if method == "직접 입력":
+            with st.form("manual_student"):
+                sid = st.text_input("학번")
+                name = st.text_input("이름")
+                submit_student = st.form_submit_button("학생 등록")
+                if submit_student and sid and name:
+                    db.collection("classes").document(class_id).collection("students").add({
+                        "sid": sid,
+                        "name": name
+                    })
+                    st.success("학생이 등록되었습니다.")
+
+        else:
+            file = st.file_uploader("CSV 업로드 (학번,sid / 이름,name)", type="csv")
+            if file:
+                df = pd.read_csv(file)
+                for _, row in df.iterrows():
+                    db.collection("classes").document(class_id).collection("students").add({
+                        "sid": str(row['sid']),
+                        "name": row['name']
+                    })
+                st.success(f"{len(df)}명 학생이 등록되었습니다.")
+
+    with subtab2:
+        students = db.collection("classes").document(class_id).collection("students").stream()
+        student_data = [s.to_dict() for s in students]
+        if student_data:
+            st.dataframe(pd.DataFrame(student_data))
+        else:
+            st.info("등록된 학생이 없습니다.")
+
